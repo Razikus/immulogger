@@ -21,17 +21,27 @@ class TokenData(BaseModel):
     scopes: List[str] = []
 
 
-exampleDatabase = {
+userDatabase = {
     "admin": {
         "password_hash": "$2b$12$bL.Dm93w/6qErzSbWKKlquIMbzEpq8oXYDSQqo0RSTegna2hZ5dia",
-        "username": "admin"
+        "username": "admin",
+        "privileges": ["SEND_LOGS", "READ_LOGS"]
+    },
+    "admin2": {
+        "password_hash": "$2b$12$bL.Dm93w/6qErzSbWKKlquIMbzEpq8oXYDSQqo0RSTegna2hZ5dia",
+        "username": "admin2",
+        "privileges": ["SEND_LOGS"]
+    },
+    "admin3": {
+        "password_hash": "$2b$12$bL.Dm93w/6qErzSbWKKlquIMbzEpq8oXYDSQqo0RSTegna2hZ5dia",
+        "username": "admin3",
+        "privileges": ["READ_LOGS"]
     }
 }
 
 
 async def authenticate_user(username: str, password: str):
-    user = exampleDatabase.get(username, None)
-    # await UserDB.filter(username = username).first()
+    user = userDatabase.get(username, None)
     if not user:
         return False
     if not verify_password(password, user["password_hash"]):
@@ -57,7 +67,7 @@ async def get_current_user(security_scopes: SecurityScopes, token: str = Depends
         token_data = TokenData(scopes=token_scopes, username=username)
     except (JWTError, ValidationError):
         raise credentials_exception
-    user = exampleDatabase.get(token_data.username, None)
+    user = userDatabase.get(token_data.username, None)
     if user is None:
         raise credentials_exception
     for scope in security_scopes.scopes:

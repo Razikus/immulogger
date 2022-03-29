@@ -40,6 +40,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 async def user_has_privileges(user, form_data_scopes):
     for scope in form_data_scopes:
-        if(scope not in allowedScopes):
+        if(scope not in allowedScopes or scope not in user["privileges"]):
             return False
     return True

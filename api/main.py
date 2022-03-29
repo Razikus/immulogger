@@ -3,7 +3,7 @@ from .routers.authrouter import router as authRouter
 from .routers.logrouter import router as logRouter
 from .database.immudb import ImmudbConfirmer
 
-app = FastAPI()
+app = FastAPI(title = "Immulogger")
 
 @app.on_event("startup")
 async def onStartup():

@@ -15,9 +15,6 @@ class ImmudbConfirmer:
         self.url = url
         self.client = ImmudbClient(self.url)
         self.logged = False
-        
-        # Move to some query builder?
-        self._addTagToLogQuery = "INSERT INTO TAGS (uniqueidentifier, tag) VALUES(@uniqueidentifier%d, @tag%d);"
 
     def __enter__(self):
         self.login()
@@ -178,12 +175,19 @@ class ImmudbConfirmer:
             if(verify):
                 verified = self.verifyLogContent(item[0], item[1])
 
-            # I couldn't find possibility to fetch tags in one query. Normally - group_concat for example, but it wasn't working
+            # I couldn't find possibility to fetch tags in one query. Strange behaviour of GROUP BY
             tags = self.getTags(item[1])
             formattedResult.append(
                 LogResponse(log = item[0], uniqueidentifier = item[1], createdate = item[2], tags = tags, verified = verified)
             )
         return formattedResult
+
+    def getLogCount(self):
+        toRet = self.client.sqlQuery("SELECT COUNT() FROM LOGS")
+        if(len(toRet) > 0 and len(toRet[0]) > 0):
+            return toRet[0][0]
+        else:
+            return -1
 
     def createTables(self):
         self.client.sqlExec("""CREATE TABLE IF NOT EXISTS Logs(

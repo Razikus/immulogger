@@ -1,7 +1,14 @@
-class BatchQueryBuilder:
+from abc import ABC, abstractmethod
+
+class Builder(ABC):
+    @abstractmethod
+    def build(self):
+        pass
+
+class BatchQueryBuilder(Builder):
     def __init__(self):
         self.queries = ["BEGIN TRANSACTION"]
-        
+
     def addQuery(self, query: str):
         self.queries.append(query)
     
@@ -10,9 +17,7 @@ class BatchQueryBuilder:
         return "\n".join(self.queries)
 
 
-
-
-class LogQueryBuilder:
+class LogQueryBuilder(Builder):
     def __init__(self):
         self.constructing = ""
         pass
@@ -37,6 +42,10 @@ class LogQueryBuilder:
         self.constructing = self.constructing + f" OR {what} = {equalsWhat}"
         return self
 
+    def AND(self, what: str, equalsWhat: str):
+        self.constructing = self.constructing + f" AND {what} = {equalsWhat}"
+        return self
+
     def ORDER_BY(self, what: str, method: str):
         self.constructing = self.constructing + f" ORDER BY {what} {method}"
         return self
@@ -48,7 +57,7 @@ class LogQueryBuilder:
     def build(self):
         return self.constructing
 
-class InsertWithParamsQueryBuilder:
+class InsertWithParamsQueryBuilder(Builder):
     def __init__(self):
         self.constructing = ""
         pass
