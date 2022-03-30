@@ -7,3 +7,29 @@ services:
       - "3322:3322"
       - "9497:9497"
       - "8080:8080"
+    networks: 
+      - immunetwork
+  reverse-proxy:
+    image: traefik:v2.6
+    restart: always
+    command: --entryPoints.web.address=:80 --api.insecure=true --providers.docker
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: 
+      - immunetwork
+  
+  immulogger:
+    build: api
+    restart: always
+    environment:
+      - IMMUDB_HOST=immudb
+    labels:
+      - "traefik.http.routers.immulogger.rule=Host(`immulogger.172.27.30.148.nip.io`) || PathPrefix(`/`)"
+    networks: 
+      - immunetwork
+networks:
+  immunetwork:
+  
+  

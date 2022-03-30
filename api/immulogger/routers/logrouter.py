@@ -3,17 +3,17 @@ from fastapi import APIRouter, BackgroundTasks, Query, Security
 from fastapi import Depends
 from .authrouter import get_current_user
 from ..database.immudb import ImmudbConfirmer
-from .models.logmodel import AddLogRequest, AddLogResponse, AddLogsRequest, AddLogsResponse, CountResponse, LogsResponse
-
+from .models.logmodel import AddLogRequest, AddLogResponse, AddLogsRequest, AddLogsResponse, CountResponse, LogsResponse, VerifyRequest, VerifyResponse
+from ..main import client as immuClient
 router = APIRouter()
 
 async def getImmudbClient() -> ImmudbConfirmer:
-    return ImmudbConfirmer("localhost:3322", "immudb", "immudb")
+    return immuClient
 
 async def withWrapper(withWhat, callWhat, withWhatParam):
     with withWhat as withWhatOpened:
         func = getattr(withWhatOpened, callWhat)
-        print("Background wrapper", func(withWhatParam))
+        print("Background wrapper task ended", func(withWhatParam))
 
 @router.put("/create", summary="Add log", response_model=AddLogResponse)
 async def addLog(logRequest: AddLogRequest, background_tasks: BackgroundTasks, confirmer = Depends(getImmudbClient), current_user = Security(get_current_user, scopes=["SEND_LOGS"])):
@@ -42,3 +42,8 @@ async def getLogs(limit: int = -1, verify: bool = False, tags: List[str] = Query
 async def countLogs(confirmer = Depends(getImmudbClient), current_user = Security(get_current_user, scopes=["READ_LOGS"])):
     with confirmer as client:
         return CountResponse(count = client.getLogCount())
+
+@router.post("/verify", summary="Log verify", response_model=CountResponse)
+async def verifyLogContent(body: VerifyRequest, confirmer = Depends(getImmudbClient), current_user = Security(get_current_user, scopes=["READ_LOGS"])):
+    with confirmer as client:
+        return VerifyResponse(verified = client.verifyLogContent(body.logContent, body.identifier))

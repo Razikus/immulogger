@@ -2,6 +2,13 @@
 from pydantic import BaseModel, constr
 from typing import Optional, List, Union
 
+class VerifyRequest(BaseModel):
+    logContent: constr(max_length=4096, min_length=1)
+    identifier: constr(max_length=64, min_length=1)
+
+class VerifyResponse(BaseModel):
+    verified: bool
+
 class AddLogBody(BaseModel):
     logContent: constr(max_length=4096, min_length=1)
 

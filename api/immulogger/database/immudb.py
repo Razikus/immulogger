@@ -15,13 +15,17 @@ class ImmudbConfirmer:
         self.url = url
         self.client = ImmudbClient(self.url)
         self.logged = False
+        self.lastLogged = 0
 
     def __enter__(self):
-        self.login()
+        now = time.time()
+        if(now > self.lastLogged + 30 * 60):
+            self.login()
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        self.logout()
+        
+        pass
 
     def generateIdentifier(self, logData: str):
         shaFrom = self.makeStrSha256(logData.encode("utf-8"))
@@ -29,6 +33,7 @@ class ImmudbConfirmer:
 
     def login(self):
         self.client.login(self.username, self.password)
+        self.lastLogged = time.time()
         self.logged = True
 
     def logout(self):
@@ -189,6 +194,7 @@ class ImmudbConfirmer:
         else:
             return -1
 
+    # Move to external migration
     def createTables(self):
         self.client.sqlExec("""CREATE TABLE IF NOT EXISTS Logs(
             id INTEGER AUTO_INCREMENT, 
@@ -197,6 +203,11 @@ class ImmudbConfirmer:
             createdate INTEGER NOT NULL, 
             PRIMARY KEY (id)
         )""")
+        try:
+            self.client.sqlExec("""CREATE INDEX ON Logs(id);""")
+            self.client.sqlExec("""CREATE UNIQUE INDEX ON Logs(uniqueidentifier);""")
+        except:
+            pass
         self.client.sqlExec("""
         CREATE TABLE IF NOT EXISTS Tags(
             uniqueidentifier VARCHAR[64] NOT NULL, 

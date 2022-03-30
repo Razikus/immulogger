@@ -1,13 +1,15 @@
 from fastapi import FastAPI
+from .database.immudb import ImmudbConfirmer
+from .config.config import IMMUDB_URL, IMMUDB_LOGIN, IMMUDB_PASSWORD
+client = ImmudbConfirmer(IMMUDB_URL, IMMUDB_LOGIN, IMMUDB_PASSWORD)
 from .routers.authrouter import router as authRouter
 from .routers.logrouter import router as logRouter
-from .database.immudb import ImmudbConfirmer
 
 app = FastAPI(title = "Immulogger")
 
 @app.on_event("startup")
 async def onStartup():
-    client = ImmudbConfirmer("localhost:3322", "immudb", "immudb")
+    print(IMMUDB_URL, flush=True)
     with client as dbClient:
         dbClient.createTables()
 
