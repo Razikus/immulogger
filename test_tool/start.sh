@@ -1,1 +1,1 @@
-HOST=localhost FIXEDWAIT=10 Port=80 WORKERS=32 ./boomboom
+HOST=localhost FIXEDWAIT=10 PORT=80 WORKERS=32 ./boomboom
