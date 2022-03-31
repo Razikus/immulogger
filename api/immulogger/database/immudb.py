@@ -55,7 +55,6 @@ class ImmudbConfirmer:
             shaFrom = self.makeSha256(toSha)
             return shaFrom == verifiedSha.value and verifiedSha.verified == True
         except Exception as e:
-            print("Cannot verify", e)
             return False
 
     def verifyLogSha(self, logSHA: str, logIdentifier: str) -> bool:
@@ -64,7 +63,6 @@ class ImmudbConfirmer:
             strigified = binascii.hexlify(verifiedSha.value).decode("utf-8")
             return logSHA == strigified and verifiedSha.verified == True
         except Exception as e:
-            print("Cannot verify", e)
             return False
 
 
@@ -83,33 +81,43 @@ class ImmudbConfirmer:
         loghash = self.makeSha256(log.encode("utf-8"))
         return self.cryptoSet(id, loghash)
 
-    def addTagsFor(self, logId: str, tags: List[str]):
+    def getQueriesForAddingTags(self, startsFrom: int, logId: str, tags: List[str]):
         additionalParams = dict()
-        batchQueryBuilder = BatchQueryBuilder()
         tags = list(set(tags))
+        queries = []
+        lastIndex = 0
         for index in range(0, len(tags)):
-            tagParam = f"tag{index}"
-            uniqueParam = f"uniqueidentifier{index}"
+            tagParam = f"tag{index + startsFrom}"
+            uniqueParam = f"uniqueidentifier{index + startsFrom}"
             additionalParams[tagParam] = tags[index]
             additionalParams[uniqueParam] = logId
-            query = InsertWithParamsQueryBuilder().INSERT("TAGS", "uniqueidentifier", "tag").VALUES(index, "uniqueidentifier", "tag").build()
-            batchQueryBuilder.addQuery(query)
-        return self.client.sqlExec(batchQueryBuilder.build(), additionalParams)
+            query = InsertWithParamsQueryBuilder().INSERT("TAGS", "uniqueidentifier", "tag").VALUES(index + startsFrom, "uniqueidentifier", "tag").build()
+            queries.append(query)
+            lastIndex = index
+        return lastIndex + startsFrom + 1, additionalParams, queries
 
-    def addLog(self, identifier: str, content: str, timeReceived: int):
+    def addLog(self, identifier: str, content: str, timeReceived: int, tags: List[str]):
         params = {
             "log0": content,
             "uniqueidentifier0": identifier,
             "createdate0": timeReceived
         }
+        batchQuery = BatchQueryBuilder()
         query = InsertWithParamsQueryBuilder().INSERT("LOGS", "log", "uniqueidentifier", "createdate").VALUES(0, "log", "uniqueidentifier", "createdate").build()
-        return self.client.sqlExec(query, params)
+        batchQuery.addQuery(query)
+        lastIndex, additionalParams, tagsQueries = self.getQueriesForAddingTags(0, identifier, tags)
+        params = {**params, **additionalParams}
+        for query in tagsQueries:
+            batchQuery.addQuery(query)
 
-    def processLogs(self, logs: List[Union[AddLogBody, str]], timeReceived: int):
+        return self.client.sqlExec(batchQuery.build(), params)
+
+    def processLogs(self, logs: List[Union[AddLogBody, str]], timeReceived: int, tags: List[str]):
         params = dict()
         identifiers = []
         confirmations = []
         batchQueryBuilder = BatchQueryBuilder()
+        lastTagsIndex = 0
         for index in range(0, len(logs)):
             item = logs[index]
             if(type(item) == AddLogBody):
@@ -124,44 +132,30 @@ class ImmudbConfirmer:
             query = InsertWithParamsQueryBuilder().INSERT("LOGS", "log", "uniqueidentifier", "createdate").VALUES(index, "log", "uniqueidentifier", "createdate").build()
             batchQueryBuilder.addQuery(query)
             confirmations.append([identifier, self.makeSha256(content.encode("utf-8"))])
+            if(len(tags) > 0):
+                lastTagsIndex, additionalParams, tagsQueries = self.getQueriesForAddingTags(lastTagsIndex, identifier, tags)
+                params = {**params, **additionalParams}
+                for query in tagsQueries:
+                    batchQueryBuilder.addQuery(query)
+
         self.client.sqlExec(batchQueryBuilder.build(), params)
         for item in confirmations:
             self.cryptoSet(item[0], item[1])
         return identifiers
 
-    def processTagsForLogs(self, tags: List[str], identifiers: List[str]):
-        additionalParams = dict()
-        batchQueryBuilder = BatchQueryBuilder()
-        tags = list(set(tags))
-        for identifierIndex in range(0, len(identifiers)):
-            for index in range(0, len(tags)):
-                tagParam = f"tag{index}"
-                uniqueParam = f"uniqueidentifier{identifierIndex}"
-                additionalParams[tagParam] = tags[index]
-                additionalParams[uniqueParam] = identifiers[identifierIndex]
-                query = InsertWithParamsQueryBuilder().INSERT("TAGS", "uniqueidentifier", "tag").VALUES_DIFFERENT_INDEXES({"uniqueidentifier": identifierIndex, "tag": index}).build()
-                batchQueryBuilder.addQuery(query)
-        return self.client.sqlExec(batchQueryBuilder.build(), additionalParams)
-
-
     def processLogRequest(self, newLog: AddLogRequest):
         identifier = self.generateIdentifier(newLog.logContent)
-        result = self.addLog(identifier, newLog.logContent, int(time.time() * 1000))
+        result = self.addLog(identifier, newLog.logContent, int(time.time() * 1000), newLog.tags)
         self.storeConfirmation(identifier, newLog.logContent)
-        if(len(newLog.tags) > 0):
-            self.addTagsFor(identifier, newLog.tags)
         return identifier
 
     def processLogsRequest(self, newLogs: AddLogsRequest):
-        identifiers = self.processLogs(newLogs.logs, int(time.time() * 1000))
-        if(len(newLogs.tags) > 0):
-            self.processTagsForLogs(newLogs.tags, identifiers)
+        identifiers = self.processLogs(newLogs.logs, int(time.time() * 1000), newLogs.tags)
         return identifiers
 
     def getTags(self, identifier: str):
         result = self.client.sqlQuery("SELECT tag FROM TAGS WHERE uniqueidentifier=@identifier", {"identifier": identifier})
-        return [item[0] for item in result]
-        
+        return [item[0] for item in result]        
 
     def getLastLogs(self, limit: int, verify: bool = False, tagsFilter: List[str] = []):
         builder = LogQueryBuilder()
@@ -178,22 +172,34 @@ class ImmudbConfirmer:
                 else:
                     builder.OR("TAGS.tag", f"@{tagIdentifier}")  
         builder.ORDER_BY("id", "DESC")      
-        if(limit >=1):
+        if(limit >= 1):
             builder.LIMIT(limit)
         query = builder.build()
 
         result = self.client.sqlQuery(query, additionalParams)
         formattedResult = []
+        distinctWorkaroundDict = dict()
         for item in result:
             verified = False
             if(verify):
                 verified = self.verifyLogContent(item[0], item[1])
 
-            # I couldn't find possibility to fetch tags in one query. Strange behaviour of GROUP BY
-            tags = self.getTags(item[1])
-            formattedResult.append(
-                LogResponse(log = item[0], uniqueidentifier = item[1], createdate = item[2], tags = tags, verified = verified)
-            )
+            # I couldn't find possibility to fetch tags in one query. Strange behaviour of GROUP BY and select
+            # DISTINCT not implemented in SQL Querys
+            identifier = item[1]
+            tags = self.getTags(identifier)
+            if(len(tagsFilter) > 0):
+                if(all(tag in tags for tag in tagsFilter)):
+                    if(distinctWorkaroundDict.get(identifier, False) == False):
+                        distinctWorkaroundDict[identifier] = True
+                        formattedResult.append(
+                            LogResponse(log = item[0], uniqueidentifier = identifier, createdate = item[2], tags = tags, verified = verified)
+                        )
+            else:
+                formattedResult.append(
+                    LogResponse(log = item[0], uniqueidentifier = identifier, createdate = item[2], tags = tags, verified = verified)
+                )
+
         return formattedResult
 
     def getLogCount(self):

@@ -67,7 +67,6 @@ class ImmudbUserProvider(UserProvider):
                 else:
                     return None
             except Exception as e:
-                print(e)
                 return None
 
     def addUser(self, user: User) -> bool:

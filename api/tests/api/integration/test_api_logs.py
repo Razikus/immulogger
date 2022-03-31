@@ -86,26 +86,45 @@ def test_add_read_log_with_tags(mockedClient: HelperClient):
     logs = mockedClient.readLogs(1, False, ["y"])
     assert len(logs) == 0
 
-    # User should be able to get logs with "x" or "y" tag (OR)
+    # User should be able to get logs with "x" or "y" tag (AND)
+    logs = mockedClient.readLogs(1, False, ["x", "y"])
+    assert len(logs) == 0
+    addedLog = mockedClient.sendLog("xxxx", ["x", "y"], True)
+    assert len(addedLog) > 10 and type(addedLog) == str
     logs = mockedClient.readLogs(1, False, ["x", "y"])
     assert len(logs) == 1
     assert logs[0]["verified"] == False
     assert logs[0]["log"] == "xxxx"
-    assert logs[0]["tags"] == ["x"]
+    assert logs[0]["tags"] == ["x", "y"]
     
-    addedLog = mockedClient.sendLog("yyyy", ["y"], True)
-    addedLog = mockedClient.sendLog("xyxy", ["x", "y", "xy"], True)
+    addedLog = mockedClient.sendLog("TEST123", ["XX", "ZZ"], True)
+    addedLog = mockedClient.sendLog("123TEST", ["XX", "YY", "ZZ"], True)
 
-    logs = mockedClient.readLogs(-1, False, ["x", "y"])
+    logs = mockedClient.readLogs(-1, False, ["XX", "YY"])
+    print(logs)
+    assert len(logs) == 1
     tagsNotUnique = [tag["tags"] for tag in logs]
     tagsUnique = [ item for sublist in tagsNotUnique for item in sublist ]
     logs = list([log["log"] for log in logs])
-    assert "x" in tagsUnique
-    assert "y" in tagsUnique
-    assert "xy" in tagsUnique
-    assert "yyyy" in logs
-    assert "xxxx" in logs
-    assert "xyxy" in logs
+    assert "XX" in tagsUnique
+    assert "YY" in tagsUnique
+    assert "123TEST" in logs
+
+    logs = mockedClient.readLogs(-1, False, ["XX", "ZZ"])
+    assert len(logs) == 2
+    tagsNotUnique = [tag["tags"] for tag in logs]
+    tagsUnique = [ item for sublist in tagsNotUnique for item in sublist ]
+    logs = list([log["log"] for log in logs])
+    assert "XX" in tagsUnique
+    assert "ZZ" in tagsUnique
+    assert "TEST123" in logs
+    assert "123TEST" in logs
+
+
+    addedLog = mockedClient.sendLog("AAAAAAA", ["XX", "YY", "ZZ", "AA", "BB", "CC"], True)
+    logs = mockedClient.readLogs(-1, False, ["XX", "YY", "ZZ", "AA", "BB", "CC"])
+    assert len(logs) == 1
+    assert logs[0]["log"] == "AAAAAAA"
     
         
 def test_add_batch_logs(mockedClient: HelperClient):

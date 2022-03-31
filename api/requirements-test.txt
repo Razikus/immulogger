@@ -1,0 +1,9 @@
+fastapi==0.75.0
+uvicorn==0.17.6
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.5
+immudb-py==1.1.0
+pytest==7.1.1
+pytest-docker==0.11.0
+pytest-html==3.1.1

@@ -42,7 +42,6 @@ class HelperClient:
         }
         response = self.client.put("/api/v1/log/batchcreate", json = jsoned, headers = self.authorizationHeaders)
         unJsoned = response.json()
-        print(unJsoned)
         assert response.status_code == 200
         assert "logIds" in unJsoned
         return unJsoned["logIds"]

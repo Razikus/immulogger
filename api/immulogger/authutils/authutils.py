@@ -32,7 +32,6 @@ allowedScopesDescription = {
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token", scopes=allowedScopesDescription)
 
 def verify_password(plain_password, hashed_password):
-    print(plain_password, hashed_password, get_password_hash(plain_password))
     try:
         return pwd_context.verify(plain_password, hashed_password)
     except:

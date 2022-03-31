@@ -9,6 +9,9 @@ services:
       - "8080:8080"
     networks: 
       - immunetwork
+    volumes:
+      - "immudb:/var/lib/immudb"
+      
   reverse-proxy:
     image: traefik:v2.6
     restart: always
@@ -26,10 +29,12 @@ services:
     environment:
       - IMMUDB_HOST=immudb
     labels:
-      - "traefik.http.routers.immulogger.rule=Host(`immulogger.172.27.30.148.nip.io`) || PathPrefix(`/`)"
+      - "traefik.http.routers.immulogger.rule=PathPrefix(`/`)"
     networks: 
       - immunetwork
 networks:
   immunetwork:
+volumes:
+  immudb:
   
   

@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import APIRouter, BackgroundTasks, Query, Security
 from fastapi import Depends
+from pydantic import conint
 
 from ..authutils.authutils import AllowedScope
 from .authrouter import get_current_user
@@ -36,7 +37,7 @@ async def addLogs(logRequest: AddLogsRequest, background_tasks: BackgroundTasks,
         return AddLogsResponse(logIds = ["NOT_WAITING"])
 
 @router.get("/get", summary="Get logs", response_model=LogsResponse)
-async def getLogs(limit: int = -1, verify: bool = False, tags: List[str] = Query([]), confirmer: ImmudbConfirmer = Depends(getImmudbClient), current_user = Security(get_current_user, scopes=[AllowedScope.READ_LOGS.value])):
+async def getLogs(limit: conint(le = 1000) = -1, verify: bool = False, tags: List[str] = Query([]), confirmer: ImmudbConfirmer = Depends(getImmudbClient), current_user = Security(get_current_user, scopes=[AllowedScope.READ_LOGS.value])):
     with confirmer as client:
         return LogsResponse(logs = client.getLastLogs(limit, verify, tags))
 

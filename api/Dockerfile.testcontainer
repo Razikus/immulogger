@@ -1,0 +1,9 @@
+FROM python:3.9
+WORKDIR /app
+COPY ./requirements-test.txt /code/requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt && rm /code/requirements.txt
+COPY ./immulogger /app/immulogger
+COPY ./tests /app/tests
+COPY ./tests/docker-compose.yml /tests/docker-compose.yml
+EXPOSE 80
+ENTRYPOINT ["pytest", "-v", "--html", "/report.html"]
