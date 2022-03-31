@@ -24,7 +24,7 @@ services:
       - immunetwork
   
   immulogger:
-    image: ghcr.io/razikus/immulogger:master
+    build: api
     restart: always
     environment:
       - IMMUDB_HOST=immudb
