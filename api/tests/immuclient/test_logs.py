@@ -2,7 +2,7 @@ import pydantic
 import pytest
 
 from immulogger.routers.models.logmodel import AddLogRequest, AddLogsRequest
-from . import immudb_service, docker_services_each
+from .. import immudb_service, docker_services_each
 
 
 def test_basic_add_retrieve_logs(immudb_service):

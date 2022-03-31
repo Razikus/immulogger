@@ -1,3 +1,4 @@
+import binascii
 from typing import List, Union
 from immudb import ImmudbClient
 import hashlib
@@ -53,6 +54,15 @@ class ImmudbConfirmer:
             toSha = log.encode("utf-8")
             shaFrom = self.makeSha256(toSha)
             return shaFrom == verifiedSha.value and verifiedSha.verified == True
+        except Exception as e:
+            print("Cannot verify", e)
+            return False
+
+    def verifyLogSha(self, logSHA: str, logIdentifier: str) -> bool:
+        try:
+            verifiedSha = self.getVerified(logIdentifier)
+            strigified = binascii.hexlify(verifiedSha.value).decode("utf-8")
+            return logSHA == strigified and verifiedSha.verified == True
         except Exception as e:
             print("Cannot verify", e)
             return False
@@ -158,7 +168,6 @@ class ImmudbConfirmer:
         builder = builder.SELECT("log", "uniqueidentifier", "createdate").FROM("LOGS")
         query = ""
         additionalParams = dict()
-
         if(len(tagsFilter) > 0):
             builder.JOIN("TAGS", "LOGS.uniqueidentifier", "TAGS.uniqueidentifier")
             for index in range(0, len(tagsFilter)):

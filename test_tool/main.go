@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -34,21 +35,33 @@ func getAuthorizationToken(target string, username string, password string) Toke
 	return result
 }
 
+func generateString(n int) string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+	s := make([]rune, n)
+	for i := range s {
+		s[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(s)
+}
+
 func logGenerate(target string, tokenResponse *TokenResponse, id int, fixedWait int, finishedBus chan int) {
-	var jsonData = []byte(`{
-		"logContent": "morpheus"
-	}`)
-	req, err := http.NewRequest("PUT", target, bytes.NewBuffer(jsonData))
+	values := map[string]string{
+		"logContent": generateString(128),
+	}
+	marshaling, _ := json.Marshal(values)
+	var jsonData = bytes.NewBuffer(marshaling)
+	req, err := http.NewRequest("PUT", target, jsonData)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+tokenResponse.AccessToken)
 	if err != nil {
-		log.Println("Something goes wrong with", id)
+		log.Println("Something goes wrong with preparing request", id)
 	}
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil || resp == nil {
-		log.Println("Something goes wrong with", id)
+		log.Println("Something goes wrong while requesting", id)
 	}
 	body, _ := ioutil.ReadAll(resp.Body)
 	log.Println(id, "ANSWER", string(body))

@@ -4,17 +4,32 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm, Se
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
+from ..config.config import SECRET_KEY
+from enum import Enum
 
-SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 180
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-allowedScopes = {
-    "SEND_LOGS": "Allow to send logs",
-    "READ_LOGS": "Allow to read logs"
+
+class ExtendedEnum(Enum):
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
+
+class AllowedScope(str, ExtendedEnum):
+    SEND_LOGS = "SEND_LOGS"
+    READ_LOGS = "READ_LOGS"
+    USER_ADMIN = "USER_ADMIN"
+
+
+allowedScopesDescription = {
+    AllowedScope.SEND_LOGS.value: "Allow to send logs",
+    AllowedScope.READ_LOGS.value: "Allow to read logs",
+    AllowedScope.USER_ADMIN.value: "Allows to add and update users"
 }
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token", scopes=allowedScopes)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token", scopes=allowedScopesDescription)
 
 def verify_password(plain_password, hashed_password):
     print(plain_password, hashed_password, get_password_hash(plain_password))
@@ -37,9 +52,3 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-
-async def user_has_privileges(user, form_data_scopes):
-    for scope in form_data_scopes:
-        if(scope not in allowedScopes or scope not in user["privileges"]):
-            return False
-    return True

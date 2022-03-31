@@ -1,7 +1,7 @@
 FROM python:3.9
 WORKDIR /app
 COPY ./requirements.txt /code/requirements.txt
-RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt && rm /code/requirements.txt
 COPY ./immulogger /app/api
 EXPOSE 80
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "80"]
