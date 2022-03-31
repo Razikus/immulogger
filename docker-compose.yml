@@ -28,10 +28,17 @@ services:
     restart: always
     environment:
       - IMMUDB_HOST=immudb
+      - IMMUDB_PORT=3322
+      - IMMUDB_LOGIN=immudb
+      - IMMUDB_PASSWORD=immudb
+      - SECRET_KEY=29321dcb01af534949ff2f098270e4b90683f80cbd5995c4cf4826e38c1c37f40897190801a2d2d1c0f7720e2411258b94ffa28ff38c438381885a68acef8550
+      # Change SECRET KEY. Generate it via openssl rand -hex 64
     labels:
       - "traefik.http.routers.immulogger.rule=PathPrefix(`/`)"
     networks: 
       - immunetwork
+
+
 networks:
   immunetwork:
 volumes:
