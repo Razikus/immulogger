@@ -176,10 +176,7 @@ class ImmudbConfirmer:
         formattedResult = []
         hasNext = True
         lastId = 0
-        lastIndexOf = 0
         while hasNext:
-            if(lastIndexOf > 100):
-                raise Exception("TOO MUCH CALLS")
             lastIndexOf = lastIndexOf + 1
             builder = LogQueryBuilder()
             builder = builder.SELECT("log", "uniqueidentifier", "createdate", "id").FROM("LOGS")
