@@ -5,5 +5,7 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt && rm /code/r
 COPY ./immulogger /app/immulogger
 COPY ./tests /app/tests
 COPY ./tests/docker-compose.yml /tests/docker-compose.yml
+RUN mkdir /certs
+COPY tests/*.pem /certs/
 EXPOSE 80
 ENTRYPOINT ["pytest", "-v", "--html", "/report.html", "--self-contained-html"]

@@ -10,11 +10,12 @@ from .conditionbuilder import ConditionBuilder, Condition, ANDCondition, EmptyCo
 
 
 class ImmudbConfirmer:
-    def __init__(self, url: str, username: str, password: str):
+    def __init__(self, url: str, username: str, password: str, keyPath: Union[str, None]):
         self.username = username
         self.password = password
         self.url = url
-        self.client = ImmudbClient(self.url)
+        self.keyPath = keyPath
+        self.client = ImmudbClient(self.url, publicKeyFile=self.keyPath)
         self.logged = False
         self.lastLogged = 0
 

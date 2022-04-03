@@ -27,4 +27,4 @@ def immudb_service(docker_ip, docker_services_each):
     docker_services_each.wait_until_responsive(
         timeout=30.0, pause=0.1, check=lambda: is_responsive(url)
     )
-    return ImmudbConfirmer(f"{docker_ip}:{clientPort}", "immudb", "immudb")
+    return ImmudbConfirmer(f"{docker_ip}:{clientPort}", "immudb", "immudb", "/certs/public_signing_key.pem")

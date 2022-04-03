@@ -12,7 +12,9 @@ import immulogger.config.config as configToSet
 @pytest.fixture(scope="function")
 def mockedClient(immudb_service: ImmudbConfirmer):
     configToSet.IMMUDB_URL = immudb_service.url
+    configToSet.IMMUDB_KEY_PATH = "/certs/public_signing_key.pem"
     serviceProviderClass.IMMUDB_URL = immudb_service.url
+    serviceProviderClass.IMMUDB_KEY_PATH = "/certs/public_signing_key.pem"
     serviceProviderClass.getServiceProvider().immudbConfirmer = immudb_service
     serviceProviderClass.getServiceProvider().userProvider = ImmudbUserProvider(immudb_service)
     with TestClient(app) as client:

@@ -1,8 +1,12 @@
 version: "3"
 services:
   immudb:
-    image: codenotary/immudb:1.1
     restart: always
     ports:
       - "3322"
       - "8080"
+    image: codenotary/immudb:1.1
+    volumes:
+      - "/certs/private_signing_key.pem:/private_signing_key.pem"
+    command: --signingKey /private_signing_key.pem
+    
