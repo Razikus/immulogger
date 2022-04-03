@@ -1,28 +1,33 @@
 
-from pydantic import BaseModel, constr
+from pydantic import BaseModel, conlist, constr
 from typing import Optional, List, Union
     
+logConstraint = constr(max_length=4096, min_length=1)
+tagConstraint = constr(max_length=64, min_length=1)
+identifierConstraint = constr(max_length=64, min_length=1)
+shaConstraint = constr(max_length=64, min_length=1)
+
 class VerifyRequest(BaseModel):
-    logContent: constr(max_length=4096, min_length=1)
-    identifier: constr(max_length=64, min_length=1)
+    logContent: logConstraint
+    identifier: identifierConstraint
 
 class VerifySHARequest(BaseModel):
-    logSHA: constr(max_length=64, min_length=1)
-    identifier: constr(max_length=64, min_length=1)
+    logSHA: shaConstraint
+    identifier: identifierConstraint
 
 class VerifyResponse(BaseModel):
     verified: bool
 
 class AddLogBody(BaseModel):
-    logContent: constr(max_length=4096, min_length=1)
+    logContent: logConstraint
 
 class AddLogRequest(AddLogBody):
-    tags: List[constr(max_length=64, min_length=1)] = []
+    tags: conlist(item_type = tagConstraint, min_items = 0, max_items = 16) = []
     waitForIdentifier: bool = True
 
 class AddLogsRequest(BaseModel):
-    logs: List[Union[AddLogBody, constr(max_length=4096, min_length=1)]]
-    tags: List[constr(max_length=64, min_length=1)] = []
+    logs: conlist(item_type = Union[AddLogBody, logConstraint], min_items=1, max_items=10240)
+    tags: conlist(item_type = tagConstraint, min_items = 0, max_items = 16) = []
     waitForIdentifier: bool = True
 
 class AddLogResponse(BaseModel):

@@ -101,7 +101,6 @@ def test_add_read_log_with_tags(mockedClient: HelperClient):
     addedLog = mockedClient.sendLog("123TEST", ["XX", "YY", "ZZ"], True)
 
     logs = mockedClient.readLogs(-1, False, ["XX", "YY"])
-    print(logs)
     assert len(logs) == 1
     tagsNotUnique = [tag["tags"] for tag in logs]
     tagsUnique = [ item for sublist in tagsNotUnique for item in sublist ]
@@ -163,6 +162,17 @@ def test_add_batch_logs(mockedClient: HelperClient):
     
     assert len(logs) == 6
         
+
+        
+def test_big_batch_small_logs(mockedClient: HelperClient):
+    logged = mockedClient.login("admin", "admin", ["SEND_LOGS", "READ_LOGS"])
+    assert logged == True
+    addedLog = mockedClient.sendBatchLog(["x"] * 1024, ["x"])
+    assert len(addedLog) == 1024
+
+    logs = mockedClient.readLogs(-1, False, ["x"])
+    assert(len(logs) == 1024)
+
 def test_add_logs_in_background(mockedClient: HelperClient):
     logged = mockedClient.login("admin", "admin", ["SEND_LOGS", "READ_LOGS"])
     assert logged == True
