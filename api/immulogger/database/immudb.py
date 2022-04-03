@@ -207,9 +207,8 @@ class ImmudbConfirmer:
         formattedResult = []
         hasNext = True
         lastId = 0
-        xx=  0
         while hasNext:
-            if(limit > 1):
+            if(limit >= 1):
                 hasNext = False
             additionalParams, query = self._createLogQuery(lastId, limit, tagsFilter)
             result = self.client.sqlQuery(query, additionalParams)
