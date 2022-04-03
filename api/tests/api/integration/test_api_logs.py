@@ -167,11 +167,17 @@ def test_add_batch_logs(mockedClient: HelperClient):
 def test_big_batch_small_logs(mockedClient: HelperClient):
     logged = mockedClient.login("admin", "admin", ["SEND_LOGS", "READ_LOGS"])
     assert logged == True
+    addedLog = mockedClient.sendBatchLog(["x"] * 512, ["x"])
+    assert len(addedLog) == 512
+
+    logs = mockedClient.readLogs(-1, False, ["x"])
+    assert(len(logs) == 512)
     addedLog = mockedClient.sendBatchLog(["x"] * 1024, ["x"])
     assert len(addedLog) == 1024
 
     logs = mockedClient.readLogs(-1, False, ["x"])
-    assert(len(logs) == 1024)
+    assert(len(logs) == 1024 + 512)
+
 
 def test_add_logs_in_background(mockedClient: HelperClient):
     logged = mockedClient.login("admin", "admin", ["SEND_LOGS", "READ_LOGS"])

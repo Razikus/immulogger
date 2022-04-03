@@ -172,47 +172,53 @@ class ImmudbConfirmer:
         result = self.client.sqlQuery("SELECT tag FROM TAGS WHERE uniqueidentifier=@identifier", {"identifier": identifier})
         return [item[0] for item in result]        
 
+    def _createLogQuery(self, lastId: int, limit: int, tagsFilter: List[str]):
+        builder = LogQueryBuilder()
+        builder = builder.SELECT("log", "uniqueidentifier", "createdate", "id").FROM("LOGS")
+        query = ""
+        additionalParams = dict()
+        conditionBuilder = ConditionBuilder()
+
+        if(len(tagsFilter) > 0):
+            builder.JOIN("TAGS", "LOGS.uniqueidentifier", "TAGS.uniqueidentifier")
+            for index in range(0, len(tagsFilter)):
+                tagIdentifier = f"tag{index}"
+                additionalParams[tagIdentifier] = tagsFilter[index]
+                conditionBuilder.OR(Condition("TAGS.tag", ComparisionOperator.eq, f"@{tagIdentifier}"))
+        if(limit >= 1):
+            builded = conditionBuilder.build()
+            if(not type(builded) == EmptyCondition):
+                builder.WHERE_CONDITION(conditionBuilder.build())
+            builder.ORDER_BY("id", "DESC")
+            builder.LIMIT(limit)
+        else:
+            if(lastId > 0):
+                conditionBuilder.LEFT_AND(Condition("id", ComparisionOperator.lt, lastId))
+            builded = conditionBuilder.build()
+            if(not type(builded) == EmptyCondition):
+                builder.WHERE_CONDITION(conditionBuilder.build())
+                
+            builder.ORDER_BY("id", "DESC")
+            builder.LIMIT(256)
+        query = builder.build()
+        return additionalParams, query
+
     def getLastLogs(self, limit: int, verify: bool = False, tagsFilter: List[str] = []):
         formattedResult = []
         hasNext = True
         lastId = 0
+        xx=  0
         while hasNext:
-            builder = LogQueryBuilder()
-            builder = builder.SELECT("log", "uniqueidentifier", "createdate", "id").FROM("LOGS")
-            query = ""
-            additionalParams = dict()
-            conditionBuilder = ConditionBuilder()
-
-            if(len(tagsFilter) > 0):
-                builder.JOIN("TAGS", "LOGS.uniqueidentifier", "TAGS.uniqueidentifier")
-                for index in range(0, len(tagsFilter)):
-                    tagIdentifier = f"tag{index}"
-                    additionalParams[tagIdentifier] = tagsFilter[index]
-                    conditionBuilder.OR(Condition("TAGS.tag", ComparisionOperator.eq, f"@{tagIdentifier}"))
-            if(limit >= 1):
-                builded = conditionBuilder.build()
-                if(not type(builded) == EmptyCondition):
-                    builder.WHERE_CONDITION(conditionBuilder.build())
-                builder.ORDER_BY("id", "DESC")
-                builder.LIMIT(limit)
+            if(limit > 1):
                 hasNext = False
-            else:
-                if(lastId > 0):
-                    conditionBuilder.LEFT_AND(Condition("id", ComparisionOperator.lt, lastId))
-                builded = conditionBuilder.build()
-                if(not type(builded) == EmptyCondition):
-                    builder.WHERE_CONDITION(conditionBuilder.build())
-                
-                builder.ORDER_BY("id", "DESC")
-                builder.LIMIT(256)
-            query = builder.build()
+            additionalParams, query = self._createLogQuery(lastId, limit, tagsFilter)
             result = self.client.sqlQuery(query, additionalParams)
+
             distinctWorkaroundDict = dict()
             if(len(result) == 0):
                 hasNext = False
                 continue
             lastId = result[-1][3]
-            print(result, lastId)
             for item in result:
                 verified = False
                 if(verify):
