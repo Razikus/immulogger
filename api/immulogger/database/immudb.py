@@ -3,10 +3,10 @@ from typing import List, Union
 from immudb import ImmudbClient
 import hashlib
 import time
-import json
 import uuid
 from ..routers.models.logmodel import AddLogRequest, AddLogsRequest, AddLogBody, LogResponse
-from .querybuilder import BatchQueryBuilder, InsertQueryState, InsertWithParamsQueryBuilder, LogQueryBuilder
+from .querybuilder import BatchQueryBuilder, ComparisionOperator, InsertQueryState, InsertWithParamsQueryBuilder, LogQueryBuilder
+from .conditionbuilder import ConditionBuilder, Condition, ANDCondition, EmptyCondition, ORCondition
 
 
 class ImmudbConfirmer:
@@ -173,47 +173,70 @@ class ImmudbConfirmer:
         return [item[0] for item in result]        
 
     def getLastLogs(self, limit: int, verify: bool = False, tagsFilter: List[str] = []):
-        builder = LogQueryBuilder()
-        builder = builder.SELECT("log", "uniqueidentifier", "createdate").FROM("LOGS")
-        query = ""
-        additionalParams = dict()
-        if(len(tagsFilter) > 0):
-            builder.JOIN("TAGS", "LOGS.uniqueidentifier", "TAGS.uniqueidentifier")
-            for index in range(0, len(tagsFilter)):
-                tagIdentifier = f"tag{index}"
-                additionalParams[tagIdentifier] = tagsFilter[index]
-                if(index == 0):
-                    builder.WHERE("TAGS.tag", f"@{tagIdentifier}")
-                else:
-                    builder.OR("TAGS.tag", f"@{tagIdentifier}")  
-        builder.ORDER_BY("id", "DESC")      
-        if(limit >= 1):
-            builder.LIMIT(limit)
-        query = builder.build()
-
-        result = self.client.sqlQuery(query, additionalParams)
         formattedResult = []
-        distinctWorkaroundDict = dict()
-        for item in result:
-            verified = False
-            if(verify):
-                verified = self.verifyLogContent(item[0], item[1])
+        hasNext = True
+        lastId = 0
+        lastIndexOf = 0
+        while hasNext:
+            if(lastIndexOf > 100):
+                raise Exception("TOO MUCH CALLS")
+            lastIndexOf = lastIndexOf + 1
+            builder = LogQueryBuilder()
+            builder = builder.SELECT("log", "uniqueidentifier", "createdate", "id").FROM("LOGS")
+            query = ""
+            additionalParams = dict()
+            conditionBuilder = ConditionBuilder()
 
-            # I couldn't find possibility to fetch tags in one query. Strange behaviour of GROUP BY and select
-            # DISTINCT not implemented in SQL Querys
-            identifier = item[1]
-            tags = self.getTags(identifier)
             if(len(tagsFilter) > 0):
-                if(all(tag in tags for tag in tagsFilter)):
-                    if(distinctWorkaroundDict.get(identifier, False) == False):
-                        distinctWorkaroundDict[identifier] = True
-                        formattedResult.append(
-                            LogResponse(log = item[0], uniqueidentifier = identifier, createdate = item[2], tags = tags, verified = verified)
-                        )
+                builder.JOIN("TAGS", "LOGS.uniqueidentifier", "TAGS.uniqueidentifier")
+                for index in range(0, len(tagsFilter)):
+                    tagIdentifier = f"tag{index}"
+                    additionalParams[tagIdentifier] = tagsFilter[index]
+                    conditionBuilder.OR(Condition("TAGS.tag", ComparisionOperator.eq, f"@{tagIdentifier}"))
+            if(limit >= 1):
+                builded = conditionBuilder.build()
+                if(not type(builded) == EmptyCondition):
+                    builder.WHERE_CONDITION(conditionBuilder.build())
+                builder.ORDER_BY("id", "DESC")
+                builder.LIMIT(limit)
+                hasNext = False
             else:
-                formattedResult.append(
-                    LogResponse(log = item[0], uniqueidentifier = identifier, createdate = item[2], tags = tags, verified = verified)
-                )
+                if(lastId > 0):
+                    conditionBuilder.LEFT_AND(Condition("id", ComparisionOperator.lt, lastId))
+                builded = conditionBuilder.build()
+                if(not type(builded) == EmptyCondition):
+                    builder.WHERE_CONDITION(conditionBuilder.build())
+                
+                builder.ORDER_BY("id", "DESC")
+                builder.LIMIT(256)
+            query = builder.build()
+            result = self.client.sqlQuery(query, additionalParams)
+            distinctWorkaroundDict = dict()
+            if(len(result) == 0):
+                hasNext = False
+                continue
+            lastId = result[-1][3]
+            print(result, lastId)
+            for item in result:
+                verified = False
+                if(verify):
+                    verified = self.verifyLogContent(item[0], item[1])
+
+                # I couldn't find possibility to fetch tags in one query. Strange behaviour of GROUP BY and select
+                # DISTINCT not implemented in SQL Querys
+                identifier = item[1]
+                tags = self.getTags(identifier)
+                if(len(tagsFilter) > 0):
+                    if(all(tag in tags for tag in tagsFilter)):
+                        if(distinctWorkaroundDict.get(identifier, False) == False):
+                            distinctWorkaroundDict[identifier] = True
+                            formattedResult.append(
+                                LogResponse(log = item[0], uniqueidentifier = identifier, createdate = item[2], tags = tags, verified = verified)
+                            )
+                else:
+                    formattedResult.append(
+                        LogResponse(log = item[0], uniqueidentifier = identifier, createdate = item[2], tags = tags, verified = verified)
+                    )
 
         return formattedResult
 
@@ -235,6 +258,7 @@ class ImmudbConfirmer:
         )""")
         try:
             self.client.sqlExec("""CREATE INDEX ON Logs(id);""")
+            self.client.sqlExec("""CREATE INDEX ON Tags(tag);""")
             self.client.sqlExec("""CREATE UNIQUE INDEX ON Logs(uniqueidentifier);""")
         except:
             pass
