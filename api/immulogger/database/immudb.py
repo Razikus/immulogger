@@ -6,7 +6,7 @@ import time
 import json
 import uuid
 from ..routers.models.logmodel import AddLogRequest, AddLogsRequest, AddLogBody, LogResponse
-from .querybuilder import BatchQueryBuilder, InsertWithParamsQueryBuilder, LogQueryBuilder
+from .querybuilder import BatchQueryBuilder, InsertQueryState, InsertWithParamsQueryBuilder, LogQueryBuilder
 
 
 class ImmudbConfirmer:
@@ -81,20 +81,23 @@ class ImmudbConfirmer:
         loghash = self.makeSha256(log.encode("utf-8"))
         return self.cryptoSet(id, loghash)
 
-    def getQueriesForAddingTags(self, startsFrom: int, logId: str, tags: List[str]):
+    def getQueriesForAddingTags(self, startsFrom: int, logId: str, tags: List[str], insertQuery: InsertWithParamsQueryBuilder = None):
+        if(not insertQuery):
+            insertQuery = InsertWithParamsQueryBuilder()
         additionalParams = dict()
         tags = list(set(tags))
-        queries = []
+        if(insertQuery.currentState is InsertQueryState.START):
+            insertQuery.INSERT("TAGS", "uniqueidentifier", "tag")
         lastIndex = 0
         for index in range(0, len(tags)):
             tagParam = f"tag{index + startsFrom}"
             uniqueParam = f"uniqueidentifier{index + startsFrom}"
             additionalParams[tagParam] = tags[index]
             additionalParams[uniqueParam] = logId
-            query = InsertWithParamsQueryBuilder().INSERT("TAGS", "uniqueidentifier", "tag").VALUES(index + startsFrom, "uniqueidentifier", "tag").build()
-            queries.append(query)
+            insertQuery.VALUES(index + startsFrom, "uniqueidentifier", "tag")
             lastIndex = index
-        return lastIndex + startsFrom + 1, additionalParams, queries
+        return lastIndex + startsFrom + 1, additionalParams, insertQuery
+        
 
     def addLog(self, identifier: str, content: str, timeReceived: int, tags: List[str]):
         params = {
@@ -105,18 +108,21 @@ class ImmudbConfirmer:
         batchQuery = BatchQueryBuilder()
         query = InsertWithParamsQueryBuilder().INSERT("LOGS", "log", "uniqueidentifier", "createdate").VALUES(0, "log", "uniqueidentifier", "createdate").build()
         batchQuery.addQuery(query)
-        lastIndex, additionalParams, tagsQueries = self.getQueriesForAddingTags(0, identifier, tags)
-        params = {**params, **additionalParams}
-        for query in tagsQueries:
-            batchQuery.addQuery(query)
+        if(len(tags) > 0):
+            lastIndex, additionalParams, tagsQueries = self.getQueriesForAddingTags(0, identifier, tags)
+            params = {**params, **additionalParams}
+            batchQuery.addQuery(tagsQueries.build())
 
         return self.client.sqlExec(batchQuery.build(), params)
 
     def processLogs(self, logs: List[Union[AddLogBody, str]], timeReceived: int, tags: List[str]):
         params = dict()
         identifiers = []
-        confirmations = []
+        confirmations = dict()
         batchQueryBuilder = BatchQueryBuilder()
+        logsInsertQueryBuilder = InsertWithParamsQueryBuilder()
+        tagsInsertQueryBuilder = InsertWithParamsQueryBuilder()
+        logsInsertQueryBuilder.INSERT("LOGS", "log", "uniqueidentifier", "createdate")
         lastTagsIndex = 0
         for index in range(0, len(logs)):
             item = logs[index]
@@ -129,29 +135,38 @@ class ImmudbConfirmer:
             identifiers.append(identifier)
             params[f"uniqueidentifier{index}"] = identifier
             params[f"createdate{index}"] = timeReceived
-            query = InsertWithParamsQueryBuilder().INSERT("LOGS", "log", "uniqueidentifier", "createdate").VALUES(index, "log", "uniqueidentifier", "createdate").build()
-            batchQueryBuilder.addQuery(query)
-            confirmations.append([identifier, self.makeSha256(content.encode("utf-8"))])
+            logsInsertQueryBuilder.VALUES(index, "log", "uniqueidentifier", "createdate")
+            confirmations[identifier.encode("utf-8")] = self.makeSha256(content.encode("utf-8"))
             if(len(tags) > 0):
-                lastTagsIndex, additionalParams, tagsQueries = self.getQueriesForAddingTags(lastTagsIndex, identifier, tags)
+                lastTagsIndex, additionalParams, tagsQueries = self.getQueriesForAddingTags(lastTagsIndex, identifier, tags, tagsInsertQueryBuilder)
                 params = {**params, **additionalParams}
-                for query in tagsQueries:
-                    batchQueryBuilder.addQuery(query)
+        
+        batchQueryBuilder.addQuery(logsInsertQueryBuilder.build())
+        if(len(tags) > 0):
+            batchQueryBuilder.addQuery(tagsInsertQueryBuilder.build())
 
         self.client.sqlExec(batchQueryBuilder.build(), params)
-        for item in confirmations:
-            self.cryptoSet(item[0], item[1])
+        self.client.setAll(confirmations)
         return identifiers
 
     def processLogRequest(self, newLog: AddLogRequest):
-        identifier = self.generateIdentifier(newLog.logContent)
-        result = self.addLog(identifier, newLog.logContent, int(time.time() * 1000), newLog.tags)
-        self.storeConfirmation(identifier, newLog.logContent)
-        return identifier
+        result = self.processLogs([newLog.logContent], int(time.time() * 1000), newLog.tags)
+        if(len(result) > 0):
+            return result[0]
+        else:
+            return None
+
+    def _chunks(self, lst, n):
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
 
     def processLogsRequest(self, newLogs: AddLogsRequest):
-        identifiers = self.processLogs(newLogs.logs, int(time.time() * 1000), newLogs.tags)
-        return identifiers
+        # Internal constraint of immudb. max 512 lines in one TX.
+        allIdentifiers = []
+        chunks = int(1024 / (len(newLogs.tags) + 1))
+        for chunk in self._chunks(newLogs.logs, chunks):
+            allIdentifiers.extend(self.processLogs(chunk, int(time.time() * 1000), newLogs.tags))
+        return allIdentifiers
 
     def getTags(self, identifier: str):
         result = self.client.sqlQuery("SELECT tag FROM TAGS WHERE uniqueidentifier=@identifier", {"identifier": identifier})

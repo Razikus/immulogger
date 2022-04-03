@@ -163,6 +163,31 @@ def test_add_batch_logs(mockedClient: HelperClient):
     
     assert len(logs) == 6
         
+
+        
+def test_big_batch_logs(mockedClient: HelperClient):
+    logged = mockedClient.login("admin", "admin", ["SEND_LOGS", "READ_LOGS"])
+    assert logged == True
+    addedLog = mockedClient.sendBatchLog(["x" * 4096] * 512, ["x"])
+    assert len(addedLog) == 512
+
+    logs = mockedClient.readLogs(-1, False, ["x"])
+    assert(len(logs) == 512)
+
+    addedLog = mockedClient.sendBatchLog(["x" * 4096] * 512, [])
+    assert len(addedLog) == 512
+
+    logged = mockedClient.login("admin", "admin", ["SEND_LOGS", "READ_LOGS"])
+    assert logged == True
+    addedLog = mockedClient.sendBatchLog(["x" * 4096] * 4096, ["x"])
+    assert len(addedLog) == 4096
+
+    addedLog = mockedClient.sendBatchLog(["x" * 4096] * 10240, ["x"])
+    assert len(addedLog) == 10240
+
+    with pytest.raises(AssertionError):
+       addedLog = mockedClient.sendBatchLog(["x" * 4096] * 10241, ["x"])
+
 def test_add_logs_in_background(mockedClient: HelperClient):
     logged = mockedClient.login("admin", "admin", ["SEND_LOGS", "READ_LOGS"])
     assert logged == True
