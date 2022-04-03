@@ -177,7 +177,6 @@ class ImmudbConfirmer:
         hasNext = True
         lastId = 0
         while hasNext:
-            lastIndexOf = lastIndexOf + 1
             builder = LogQueryBuilder()
             builder = builder.SELECT("log", "uniqueidentifier", "createdate", "id").FROM("LOGS")
             query = ""
